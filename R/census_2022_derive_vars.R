@@ -129,6 +129,44 @@ all_pp_hh$region <- ifelse(all_pp_hh$County.and.City %in% c("South Dublin", "Wic
 all_pp_hh$hh_size <- all_pp_hh$pop/all_pp_hh$hhs
 
 
+#estimate change in number and percentage of mortgage holders per county
+#look at number of new houses 2016 to 2022
+#type of houses - one-off, apartment, scheme
+#average size of house - construction costs
+#average county income
+
+#using SAPS 2016 - identify clusters where there is increasing population, above average income
+#but below average mortgage holders
+
+#I want to show why local house prices are needed.
+
+#affordability is particularly problematic, which could inform housing and social policies.
+#assessing current national policy targets - feasibility given viability issues
+
+#macroprudential - identify areas that have weak demand
+#use ratio of construction costs to market price as a proxy for market strength
+#Examine LTV levels by area - is there any spatial patterns in the data
+#Are there clusters of high or low LTV rates
+#Cross examine these clusters with ratio of housing demand
+#High LTV in areas wit strong demand carries less risk than high LTV in areas
+#where demand is poor.
+
+#Assess negative equity risk by area - 
+
+#particular issue with construction costs and market value in poor viability areas.
+#How is "value" estimated? Compare bank "value" with model "value". Examine if there
+#is potentially over or under valuations.
+
+#trend 2008 to 2016 showed Dublin bounced back faster.
+
+#reduce risk with self-builds, building defects, control over quality - more risk
+#construction cost limits - additional limits on price per m2 of construction
+#construction costs often underestimated.
+#with xxx self-builds per year - an estimated xx in finance
+#poor data on construction costs, valuations??
+#Negative equity risks
+#or under po
+
 
 
 gda <- all_pp_hh[ which(all_pp_hh$region=="GDA"),]
