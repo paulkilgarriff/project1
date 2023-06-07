@@ -6,7 +6,7 @@ library(sf)
 library(leaflet.extras)
 
 # Let's assume `sf_object` is your sf object with a "ratio" column
-sf_object <- st_read("Output/eir_ratio.gpkg")
+sf_object <- st_read("eir_ratio.gpkg")
 sf_object <- st_transform(sf_object,4326)
 sf_object$rat_value_rnd <- round(sf_object$rat_value,digits=2)
 
