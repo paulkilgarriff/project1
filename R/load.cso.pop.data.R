@@ -8,7 +8,7 @@ install_if_not_present <- function(package_name) {
 
 #load packages required
 list_packages <- c("csodata")
-print("Loading data from CSO website")
+print("Loading population 2022 data (FY003B) from CSO website")
 
 for (i in list_packages) {
   install_if_not_present(i)

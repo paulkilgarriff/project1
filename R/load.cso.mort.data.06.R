@@ -1,5 +1,4 @@
 
-
 install_if_not_present <- function(package_name) {
   if (!require(package_name, character.only = TRUE)) {
     install.packages(package_name)
@@ -8,7 +7,7 @@ install_if_not_present <- function(package_name) {
 
 #load packages required
 list_packages <- c("csodata")
-print("Loading occupancy 2022 data (FY034B) from CSO website")
+print("Loading occupancy 2006 data (C0622) from CSO website")
 
 for (i in list_packages) {
   install_if_not_present(i)
@@ -21,7 +20,7 @@ attempt <- 1
 #load household data from cso website
 while(attempt <= retry_attempts){
   tryCatch({
-    cso_no <- cso_get_data("FY034B", pivot_format = "long")
+    cso_mort_06 <- cso_get_data("C0622", pivot_format = "long")
     
     # If the code above runs successfully, the dataframe is presumably loaded
     # Break the loop as there is no need to try again

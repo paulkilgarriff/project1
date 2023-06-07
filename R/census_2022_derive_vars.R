@@ -7,12 +7,17 @@ install_if_not_present <- function(package_name) {
 }
 
 #load packages required
-list_packages <- c("csodata","dplyr","tidyverse")
+list_packages <- c("csodata","dplyr","tidyverse","ggplot2","scales","reshape2","extrafont")
 
 for (i in list_packages) {
   install_if_not_present(i)
   library(i, character.only = TRUE)
 }
+
+windowsFonts("Arial" = windowsFont("Arial"))
+windowsFonts("Times New Roman" = windowsFont("Times New Roman"))
+windowsFonts("Goudy Stout" = windowsFont("Goudy Stout"))
+windowsFonts("Times" = windowsFont("Times"))
 
 #Load data from cso website - (This can sometimes take a while to connect)
 source("R/load.cso.hh.data.R")
@@ -125,8 +130,50 @@ write.csv(all_pp_hh,"Output/census_22_pop_hhs_cty.csv")
 
 #Add additional column for NUTS3 regions
 
-all_pp_hh$region <- ifelse(all_pp_hh$County.and.City %in% c("South Dublin", "Wicklow", "Kildare", "Dublin City", "Meath", "Fingal", "Dún Laoghaire-Rathdown"), "GDA", NA)
-all_pp_hh$hh_size <- all_pp_hh$pop/all_pp_hh$hhs
+all_pp_hh$region <- ifelse(all_pp_hh$county.and.city %in% c("South Dublin", "Wicklow", "Kildare", "Dublin City", "Meath", "Fingal", "Dún Laoghaire-Rathdown"), "GDA", NA)
+all_pp_hh$hh_size_22 <- all_pp_hh$perhh_2022/all_pp_hh$hhs_2022
+
+#national average household size 2022
+local_author <- all_pp_hh[ which(all_pp_hh$county.and.city!="State"),]
+tt_pers_22 <- sum(local_author[,"perhh_2022"])
+tt_hhs_22 <- sum(local_author[,"hhs_2022"])
+tt_size_22 <- tt_pers_22/tt_hhs_22
+
+#greater Dublin Area only
+gda <- all_pp_hh[ which(all_pp_hh$region=="GDA"),]
+
+#subset data - examine hhsize first
+gda_hhsize <- gda[c("county.and.city","hhsize_2011","hhsize_2016","hhsize_2022")]
+#wide to long
+gda_hhsize <- melt(gda_hhsize, id.vars = "county.and.city", variable.name = "hhsize", value.name = "value")
+
+
+# Generate the plot
+hsize_2022 <- ggplot(gda_hhsize, aes(x = county.and.city, y = value, fill = factor(hhsize))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw() +
+  scale_fill_manual(values = c("hhsize_2011" = "red", "hhsize_2016" = "brown", "hhsize_2022" = "blue"), 
+                    labels = c("hhsize_2011" = "2011", "hhsize_2016" = "2016", "hhsize_2022" = "2022")) +
+  geom_hline(yintercept = tt_size_22, linetype = "dotted", color = "black") +
+  annotate("text",x=1, y = tt_size_22, label = "Avg. size 2022", vjust = -0.5, color = "black") +
+  theme(
+    text = element_text(family = "Times", color = "black"), # Use Times font
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), # Centre align the title
+    axis.title = element_text(size = 12), # Set axis title size
+    axis.text = element_text(size = 10), # Set axis text size
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  labs(
+    x = "Local Authority",
+    y = "Persons per Household",
+    title = "Average Household Size",
+    fill = "Census Year",
+    caption = "Source: Census 2022 (FY011B)"
+  )
+
+# Show the plot
+ggsave("Output/gda_hhsize.png", plot = hsize_2022, width = 10, height = 6, dpi = 500)
+
 
 
 #estimate change in number and percentage of mortgage holders per county
@@ -165,113 +212,6 @@ all_pp_hh$hh_size <- all_pp_hh$pop/all_pp_hh$hhs
 #with xxx self-builds per year - an estimated xx in finance
 #poor data on construction costs, valuations??
 #Negative equity risks
-#or under po
 
 
 
-gda <- all_pp_hh[ which(all_pp_hh$region=="GDA"),]
-
-gda_tt <- gda %>%
-  group_by(Census.Year) %>%
-  summarise(tt_pop = sum(pop),
-            tt_hhs = sum(hhs))
-gda_tt$hh_size <- gda_tt$tt_pop/gda_tt$tt_hhs
-
-library(ggplot2)
-
-# Load ggplot2
-library(ggplot2)
-
-# Create the histogram
-ggplot(gda, aes(x = County.and.City, y = hh_size, fill = factor(Census.Year))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(x = "County and City", y = "Households", fill = "Census Year") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-# Load necessary libraries
-library(dplyr)
-library(tidyr)
-
-#change in pop
-df <- gda %>%
-  arrange(County.and.City, Census.Year) %>%
-  group_by(County.and.City) %>%
-  mutate(perc_pop = (pop - lag(pop)) / lag(pop) * 100,
-         perc_hhs = (hhs - lag(hhs)) / lag(hhs) * 100,
-         perc_change = (hh_size - lag(hh_size)) / lag(hh_size) * 100)
-
-
-df_wide <- df5 %>%
-  tidyr::pivot_wider(names_from = Census.Year, values_from = pop)
-
-df5 <- spread(df5, key = County.and.City, value = pop)
-df5 <- df5 %>%
-  group_by(County.and.City) %>%
-  summarise(pop_11 = max(2011))
-
-df5 <- all_pp_hh %>%
-  arrange(County.and.City, Census.Year) %>%
-  group_by(County.and.City) %>%
-  mutate(pop_chang = (pop - lag(pop)),
-         hhs_change = (hhs - lag(hhs)))
-df5 <- df5[which(df5$Census.Year=="2022"),]
-write.csv(df5,"Output/test3.csv")
-
-df <- gda %>%
-  arrange(County.and.City, Census.Year) %>%
-  group_by(County.and.City) %>%
-  mutate(perc_pop = (pop - lag(pop)) ,
-         perc_hhs = (hhs - lag(hhs)) ,
-         perc_change = (hh_size - lag(hh_size)) )
-df <- df[which(df$Census.Year=="2022"),]
-write.csv(df,"Output/test2.csv")
-
-df <- df[which(df$Census.Year!="2011"),]
-# Create the histogram
-ggplot(df, aes(x = County.and.City, y = perc_change, fill = factor(Census.Year))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(x = "County and City", y = "Households", fill = "Census Year") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-ggplot(df, aes(x = County.and.City, y = perc_pop, fill = factor(Census.Year))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(x = "Local Authority", y = "% Change in Population", fill = "Census Year") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-ggplot(df, aes(x = County.and.City, y = perc_hhs, fill = factor(Census.Year))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(x = "Local Authority", y = "% Change in Households", fill = "Census Year") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  scale_y_continuous(limits = c(0,15))
-
-# Create the histogram
-ggplot(df, aes(x = County.and.City, y = perc_change, fill = factor(Census.Year))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(x = "County and City", y = "Households", fill = "Census Year") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-df2 <- df[which(df$Census.Year=="2022"),]
-
-
-ggplot(df2) +
-  geom_bar(aes(x = County.and.City, y = perc_hhs,fill="hhs"), stat = "identity", position = "dodge") +
-  geom_bar(aes(x = County.and.City, y = perc_pop,fill="pop"), stat = "identity", position = "dodge") +
-  labs(x = "Local Authority", y = "% Change", fill = "Census Year") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(limits = c(0,15))
-
-# Grouped bar plot
-# Grouped bar plot
-df2_long <- df2 %>%
-  tidyr::pivot_longer(cols = c(perc_hhs, perc_pop), names_to = "variable", values_to = "value") %>%
-  mutate(variable = recode(variable, perc_hhs = "Households", perc_pop = "Population"))
-
-p <- ggplot(df2_long, aes(x = County.and.City, y = value, fill = variable)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(x = "Local Authority", y = "% Change in Households", fill = "Census 2022") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(limits = c(0,15))
-
-ggsave("Output/myplot.png", plot = p, width = 10, height = 10, dpi = 300)

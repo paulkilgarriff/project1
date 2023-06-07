@@ -8,7 +8,7 @@ install_if_not_present <- function(package_name) {
 
 #load packages required
 list_packages <- c("csodata")
-print("Loading data from CSO website")
+print("Loading household 2022 data (FY011B) from CSO website")
 
 for (i in list_packages) {
   install_if_not_present(i)
@@ -17,6 +17,7 @@ for (i in list_packages) {
 
 retry_attempts <- 5
 attempt <- 1
+
 
 #load household data from cso website
 while(attempt <= retry_attempts){
@@ -40,6 +41,8 @@ while(attempt <= retry_attempts){
     attempt <- attempt + 1
   })
 }
+
+print("Loading population 2022 data (FY003B) from CSO website")
 
 #load population data using cso package
 while(attempt <= retry_attempts){

@@ -1,0 +1,28 @@
+---
+title: "Housing_project"
+author: "Paul Kilgarriff"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Plotting Data
+
+In this section we examine some of the trends from the recent census results.
+
+```{r Census 2022, echo=FALSE}
+#Create plot of average household size by Greater Dublin Area local authority
+source("R/census_2022_derive_vars.R")
+plot(hsize_2022)
+```
+
+The figure shows that household size has remained almost unchanged since 2016. The trend between 2011 and 2016 of an increasing household size has stopped.
+
+```{r Census 2022 Mortgage, echo=FALSE}
+#Create plot of average household size by Greater Dublin Area local authority
+source("R/cso_2022_mortgage_change.R")
+plot(p_mort0222)
+```
