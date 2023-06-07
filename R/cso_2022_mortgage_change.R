@@ -9,7 +9,7 @@ install_if_not_present <- function(package_name) {
 }
 
 #load packages required
-list_packages <- c("csodata","dplyr","tidyverse","reshape")
+list_packages <- c("csodata","dplyr","tidyverse","reshape2")
 
 for (i in list_packages) {
   install_if_not_present(i)
@@ -190,11 +190,11 @@ state_ten[,"pct_rent"]<- 100*(state_ten[,"rent"]/ state_ten[,"all"])
 state_ten[,"pct_pub"]<- 100*(state_ten[,"public"]/ state_ten[,"all"])
 state_pct <- state_ten[c("year","pct_own","pct_mort","pct_rent","pct_pub")]
 #reshape data from wide to long
-state_pct <- reshape::melt(state_pct, id.vars = "year", variable.name = "pct_new", value.name = "value")
+state_pct <- reshape2::melt(state_pct, id.vars = "year", variable.name = "pct_m", value.name = "value")
 
-state_pct[,"year"]<- as.numeric(state_pct[,"year"])
+state_pct$year<- as.numeric(state_pct$year)
 # Generate the plot
-p <- ggplot(state_pct, aes(x = year, y = value, color = pct_m)) +
+p_ten <- ggplot(state_pct, aes(x = year, y = value, color = pct_m)) +
   geom_line(linewidth=2) +
   theme_bw() +
   scale_x_continuous(breaks=c(2011,2016,2022))+
@@ -218,7 +218,7 @@ p <- ggplot(state_pct, aes(x = year, y = value, color = pct_m)) +
   )
 
 # Show the plot
-ggsave("Output/housing_tenure.png", plot = p, width = 10, height = 6, dpi = 500)
+ggsave("Output/housing_tenure.png", plot = p_ten, width = 10, height = 6, dpi = 500)
 
 
 #change by region

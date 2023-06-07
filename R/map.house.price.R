@@ -95,7 +95,7 @@ map.var.cloro <- function(sf.object,  #sf object
   pal <- hcl.colors(num_break, "Inferno", rev = TRUE, alpha = 0.7)
   
   # Plot the map using ggplot
-  p1<-ggplot() +
+  p_house_price<-ggplot() +
     geom_sf(data = all_cty, fill = "grey", colour = NA, show.legend = FALSE) +
     geom_sf(data = sf.object,aes(fill = br_var), color = NA) + 
     scale_fill_manual(values = pal,label = labs_plot)+
@@ -128,7 +128,10 @@ map.var.cloro <- function(sf.object,  #sf object
     theme(plot.subtitle = element_text(hjust = 0, vjust = -1))+
     theme(plot.caption = element_text(hjust = 0, vjust = 6))
   
-  ggsave(file_map1, plot = p1, width = 20, height = 12, dpi = 500)
+  ggsave(file_map1, plot = p_house_price, width = 20, height = 12, dpi = 500)
+  return(p_house_price)
 }
 
+plot_hp <- map.var.cloro(eir.sf,"rat_value","Ratio of Median Price to Average")
+  
 map.var.cloro(eir.sf,"rat_value","Ratio of Median Price to Average")
