@@ -40,6 +40,7 @@ eir.sf <- merge(eir.sf,hp_eir_sub,by.x="RoutingKey",by.y="eircode")
 eir.sf <- st_transform(eir.sf,2157)
 eir.sf <- na.omit(eir.sf, eir.sf[,"value"])
 
+st_write(eir.sf,"Output/eir_ratio.gpkg")
 #all counties includes northern ireland
 all_cty <- st_read("Data/all_counties/all_counties_ITM95.shp")
 all_cty <- st_transform(all_cty,2157)
@@ -132,6 +133,6 @@ map.var.cloro <- function(sf.object,  #sf object
   return(p_house_price)
 }
 
+map.var.cloro(eir.sf,"rat_value","Ratio of Median Price to Average")
 plot_hp <- map.var.cloro(eir.sf,"rat_value","Ratio of Median Price to Average")
   
-map.var.cloro(eir.sf,"rat_value","Ratio of Median Price to Average")
