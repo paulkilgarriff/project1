@@ -33,67 +33,11 @@ cso_pop <- cso_pop %>%
   # Remove rows where age is "All ages"
   filter(sex == "Both sexes") %>%
   filter(statistic == "Population") 
-
-#convert all column names to lower case
-colnames(cso_hh) <- tolower(colnames(cso_hh))
-names(cso_hh)[names(cso_hh) == "census.year"] <- "year"
-names(cso_hh)[names(cso_hh) == "county.and.city"] <- "county"
-names(cso_hh)[names(cso_hh) == "composition.of.private.household"] <- "comp"
-var_list <- c("year","comp","statistic","county")
-cso_hh[var_list] <- lapply(cso_hh[var_list], as.character)
-#rename Dun Laoighaire as issue if not UTF8 format
-cso_hh[,"county"] <- ifelse(grepl("laoghai", cso_hh[,"county"], ignore.case = TRUE), "DLR", cso_hh[,"county"])
-
-
-
-couple + children =    "Married couple with children" ,"Cohabiting couple with children"
-couple = "Married couple","Cohabiting couple"    
-single_p = "One parent mother with children","One parent father with children"
-other_person_hhs =  "Married couple with other persons", "Married couple with children and other persons" ,"Cohabiting couple with other persons" ,
-"Cohabiting couple with children and other persons","One parent mother with children and other persons", "One parent father with children and other persons"   
-
-multi_fam = "Two family units with/without other persons" ,"Three or more family units with/without other persons"
-share = "Non-family households containing related persons","Households comprised of unrelated persons only"
-
-
-print(unique(cso_hh$comp))
-# Filter the data frame
-cso_pop <- cso_pop %>%
-  # Remove rows where age is "All ages"
-  filter(sex == "Both sexes") %>%
-  filter(statistic == "Population") 
-
-
-
-
-# Replace "year" or "years" with "" and remove spaces
-cso_pop_age <- cso_pop_age %>%
-  mutate(age = ifelse(grepl("year", age), gsub("\\s*year[s]*\\s*", "", age), age))
-#remove spaces
-cso_pop_age$age <- sub("[[:space:]].*", "", cso_pop_age$age)
-#convert to numeric
-cso_pop_age$age <- as.numeric(cso_pop_age$age)
-
-# Create age_group based on age
-cso_pop_age <- cso_pop_age %>%
+cso_pop <- cso_pop[c(1,2,4,5)]
+reg_pop <- cso_pop %>%
+  filter(county != "State") %>%
   mutate(
-    age_group = case_when(
-      age < 15 ~ "u15",
-      age >= 15 & age <= 64 ~ "age15_64",
-      age > 64 ~ "o65",
-      TRUE ~ "other"  # This will capture any other cases, e.g. NAs
-    )
-  )
-
-#collapse by census year, county and age group
-cso_pop_age <- cso_pop_age %>%
-  group_by(year,county,age_group) %>%
-  summarise(total1=sum(value))
-
-#Derive Region name using county name
-reg_ten <- cso_pop_age %>%
-  mutate(
-    region = case_when(
+    county = case_when(
       county %in% c("Carlow","Kilkenny", "Offaly", "Cavan", 
                     "Westmeath", "Louth", "Wexford","Laois") ~ "wGDA",
       county %in% c("Cork City and Cork County", "Waterford City and County", "Kerry") ~ "South",
@@ -106,42 +50,110 @@ reg_ten <- cso_pop_age %>%
       TRUE ~ NA_character_  # This will assign NA to any county not listed above
     )
   )
-#sum by region
+reg_pop <- reg_pop %>%
+  group_by(statistic,year,county) %>%
+  summarise(value=sum(value))
+#merge back in
+cso_pop <- rbind(cso_pop,reg_pop)
+
+#convert all column names to lower case
+colnames(cso_hh) <- tolower(colnames(cso_hh))
+names(cso_hh)[names(cso_hh) == "census.year"] <- "year"
+names(cso_hh)[names(cso_hh) == "county.and.city"] <- "county"
+names(cso_hh)[names(cso_hh) == "composition.of.private.household"] <- "comp"
+var_list <- c("year","comp","statistic","county")
+cso_hh[var_list] <- lapply(cso_hh[var_list], as.character)
+#rename Dun Laoighaire as issue if not UTF8 format
+cso_hh[,"county"] <- ifelse(grepl("laoghai", cso_hh[,"county"], ignore.case = TRUE), "DLR", cso_hh[,"county"])
+
+#Derive Region name using county name
+cso_hh <- cso_hh %>%
+  mutate(
+    hs_comp = case_when(
+      comp %in% c("One person") ~ "sing",
+      comp %in% c("Married couple with children" ,"Cohabiting couple with children") ~ "coup_kid",
+      comp %in% c("Married couple","Cohabiting couple") ~ "coup",
+      comp %in% c("One parent mother with children","One parent father with children") ~ "lone_kid",
+      comp %in% c( "Married couple with other persons", "Married couple with children and other persons" ,
+                   "Cohabiting couple with children and other persons","One parent mother with children and other persons", "One parent father with children and other persons",   
+                   "Cohabiting couple with other persons" ) ~ "fam_oth",
+      comp %in% c("Two family units with/without other persons" ,"Three or more family units with/without other persons") ~ "fam_mult",
+      comp %in% c("Non-family households containing related persons","Households comprised of unrelated persons only") ~ "h_shr",
+      TRUE ~ NA_character_  # This will assign NA to any county not listed above
+    )
+  )
+
+cso_hh <- cso_hh %>%
+  group_by(statistic,year,county,hs_comp) %>%
+  summarise(value=sum(value))
+  #get total
+cso_all <- cso_hh %>%
+  group_by(statistic,year,county) %>%
+  summarise(value=sum(value))
+cso_all$hs_comp <- "all"
+#merge back in
+cso_hh <- rbind(cso_hh,cso_all)
+
+#Derive Region name using county name
+reg_ten <- cso_hh %>%
+  filter(county != "State") %>%
+  mutate(
+    county = case_when(
+      county %in% c("Carlow","Kilkenny", "Offaly", "Cavan", 
+                    "Westmeath", "Louth", "Wexford","Laois") ~ "wGDA",
+      county %in% c("Cork City and Cork County", "Waterford City and County", "Kerry") ~ "South",
+      county %in% c("Dublin City", "South Dublin", "DLR", "Kildare","Wicklow",
+                    "Fingal", "Meath") ~ "GDA",
+      county %in% c("Galway County", "Limerick City and County", "Clare", "Galway City") ~ "West",
+      county %in% c("Mayo", "Longford", "Roscommon", "Tipperary") ~ "Other",
+      county %in% c("Donegal", "Leitrim", "Monaghan", "Sligo") ~ "Border",
+      county %in% c("State") ~ "State",
+      TRUE ~ NA_character_  # This will assign NA to any county not listed above
+    )
+  )
 reg_ten <- reg_ten %>%
-  filter(region != "State") %>%
-  group_by(year,region,age_group) %>%
-  summarise(total1=sum(total1))
-#rename variable
-names(reg_ten)[names(reg_ten) == "region"] <- "county"
-#append to data
-# Append to the original dataframe
-cso_pop_age <- rbind(cso_pop_age, reg_ten)
+  group_by(statistic,year,county,hs_comp) %>%
+  summarise(value=sum(value))
+#merge back in
+cso_hh <- rbind(cso_hh,reg_ten)
 
-##################
 
+#cso_hh
+cso_hh <- cso_hh %>%
+  mutate(
+    statistic = case_when(
+      statistic %in% c("All persons in private households") ~ "pers_hh",
+      statistic %in% c("Total private households") ~ "tt_hhs",
+      TRUE ~ NA_character_  # This will assign NA to any county not listed above
+    )
+  )
+
+cso_hh$var_name <- paste0(cso_hh$hs_comp,"_",cso_hh$statistic)
+df_hh <- cso_hh
+df_hh$magnitude <- "absolute total"
+df_hh$temporal <- "static"
+df_hh <- df_hh[c("county","year","var_name","magnitude","temporal","value")]
+df_hh$year  <- as.character(df_hh$year)
+cso_hh$year <- as.numeric(cso_hh$year)
 # Calculate absolute and relative change and store in new data frame
-df_changes <- cso_pop_age %>%
-  group_by(county, age_group) %>%
+df_changes <- cso_hh %>%
+  group_by(county, hs_comp, var_name) %>%
   arrange(year) %>%
   mutate(
-    abs_change = round(total1 - lag(total1),digits=0),
-    rel_change = round(100*((total1 - lag(total1)) / lag(total1)),digits=2)
+    abs_change = round(value - lag(value),digits=0),
+    rel_change = round(100*((value - lag(value)) / lag(value)),digits=2)
   ) %>%
   pivot_longer(c(abs_change, rel_change), names_to = "type", values_to = "change") %>%
   mutate(type1 = ifelse(grepl("abs_change", type), "absolute", "relative"))
 
 df_changes <- df_changes %>%
   # Remove rows where age is "All ages"
-  filter(year != "2011")
+  filter(year != 2011)
 
+df_changes$value <- NULL
 #rename and order variables
 df_changes$year[df_changes$year == "2016"] <- "2011-2016"
 df_changes$year[df_changes$year == "2022"] <- "2016-2022"
-df_changes$age_group[df_changes$age_group == "u15"] <- "age_under15"
-df_changes$age_group[df_changes$age_group == "o65"] <- "age_over65"
-df_changes$age_group[df_changes$age_group == "age15_64"] <- "age_15_64"
-#
-names(df_changes)[names(df_changes) == "age_group"] <- "var_name"
 names(df_changes)[names(df_changes) == "change"] <- "value"
 names(df_changes)[names(df_changes) == "type1"] <- "magnitude"
 df_changes$temporal <- "change"
@@ -149,41 +161,43 @@ df_changes$temporal <- "change"
 df_changes <- df_changes[c("county","year","var_name","magnitude","temporal","value")]
 
 
-#get age ratios
-df_ratios <- cso_pop_age %>%
-  group_by(county, year) %>%
-  summarise(
-    age_over65 = (total1[age_group == "o65"]) / (total1[age_group == "age15_64"]),
-    age_under15 = (total1[age_group == "u15"]) / (total1[age_group == "age15_64"])
-  )
+#population
+df_pop <- cso_pop
+df_pop$magnitude <- "absolute total"
+df_pop$temporal <- "static"
+df_pop$var_name <- "population"
+df_pop <- df_pop[c("county","year","var_name","magnitude","temporal","value")]
 
-long_df_ratios <- df_ratios %>%
-  tidyr::pivot_longer(
-    cols = c(age_over65, age_under15),
-    names_to = "var_name",
-    values_to = "value"
-  )
+cso_pop$year <- as.numeric(cso_pop$year)
+# Calculate absolute and relative change and store in new data frame
+df_pchanges <- cso_pop %>%
+  group_by(county) %>%
+  arrange(year) %>%
+  mutate(
+    abs_change = round(value - lag(value),digits=0),
+    rel_change = round(100*((value - lag(value)) / lag(value)),digits=2)
+  ) %>%
+  pivot_longer(c(abs_change, rel_change), names_to = "type", values_to = "change") %>%
+  mutate(type1 = ifelse(grepl("abs_change", type), "absolute", "relative"))
 
-#
-names(df_changes)[names(df_changes) == "age_group"] <- "var_name"
-names(df_changes)[names(df_changes) == "change"] <- "value"
-long_df_ratios$magnitude <- "ratio"
-long_df_ratios$temporal <- "static"
-long_df_ratios$value <- round(100*(long_df_ratios$value),digits=2)
-long_df_ratios <- long_df_ratios[c("county","year","var_name","magnitude","temporal","value")]
+df_pchanges <- df_pchanges %>%
+  # Remove rows where age is "All ages"
+  filter(year != 2006)
 
-#And now values
-cso_pop_age_val <- cso_pop_age
-cso_pop_age_val$age_group[cso_pop_age_val$age_group == "u15"] <- "age_under15"
-cso_pop_age_val$age_group[cso_pop_age_val$age_group == "o65"] <- "age_over65"
-cso_pop_age_val$age_group[cso_pop_age_val$age_group == "age15_64"] <- "age_15_64"
-names(cso_pop_age_val)[names(cso_pop_age_val) == "age_group"] <- "var_name"
-names(cso_pop_age_val)[names(cso_pop_age_val) == "total1"] <- "value"
-cso_pop_age_val$magnitude <- "absolute total"
-cso_pop_age_val$temporal <- "static"
+df_pchanges$value <- NULL
+#rename and order variables
+df_pchanges$year[df_pchanges$year == "2016"] <- "2011-2016"
+df_pchanges$year[df_pchanges$year == "2022"] <- "2016-2022"
+names(df_pchanges)[names(df_pchanges) == "change"] <- "value"
+names(df_pchanges)[names(df_pchanges) == "type1"] <- "magnitude"
+df_pchanges$temporal <- "change"
+df_pchanges$var_name <- "population"
+df_pchanges <- df_pchanges[c("county","year","var_name","magnitude","temporal","value")]
+
 
 #bring all together
-cso_pop_age <- rbind(cso_pop_age_val,long_df_ratios)
-cso_pop_age <- rbind(cso_pop_age_val,df_changes)
+cso_pop_hh_all <- rbind(df_hh,df_changes)
+cso_pop_hh_all <- rbind(cso_pop_hh_all,df_pop)
+cso_pop_hh_all <- rbind(cso_pop_hh_all,df_pchanges)
 
-write.csv(cso_pop_age,"Output/census_22_pop_age_cty.csv")
+write.csv(cso_pop_hh_all,"Output/census_22_hh_fam_pop_cty.csv")

@@ -1,0 +1,561 @@
+---
+title: "Census 2022"
+subtitle: "Some initial thoughts"
+author: "Paul Kilgarriff"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Ireland Census 2022
+
+With the release of the first set of summary results on the 30th May, I look at some of the main trends that are taking place. I focus in particular on change in population and households and also the composition of households.
+
+## Housing Tenure
+
+Figure 1 shows the breakdown of the share of the four housing tenures by local authority and regional grouping. 
+
+#### Figure 1: Census 2022 Housing Tenure.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(ggthemes)
+library(tidyverse)
+library(extrafont)
+windowsFonts("Arial" = windowsFont("Arial"))
+windowsFonts("Times New Roman" = windowsFont("Times New Roman"))
+windowsFonts("Goudy Stout" = windowsFont("Goudy Stout"))
+
+all_df <- read.csv("Output/census_22_all_cty.csv")
+all_df <- all_df %>%
+    mutate(county = str_replace_all(county, c("Cork City and Cork County" = "Cork", "Waterford City and County" = "Waterford","Limerick City and County"="Limerick" )))
+
+source("R/load.custom.theme.R")
+
+filtered_data <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year == "2022",
+         temporal == "static", 
+         category == "tenure",
+         var_name!= "tenure_other",
+         var_name!= "tenure_all")
+
+df1 <- filtered_data %>%
+  group_by(county) %>%
+  mutate(share = value / sum(value))
+
+# Convert the 'group' variable to a factor and specify the order of levels
+df1$var_name <- factor(df1$var_name, levels = c("tenure_social", "tenure_rent","tenure_mort","tenure_owner"))
+
+# Subset the dataframe for groups 'tenure_owner' and 'tenure_mort'
+df2 <- df1 %>%
+  filter(var_name %in% c("tenure_owner")) %>%
+  group_by(county) %>%
+  summarise(owners = sum(share))
+
+df1 <- merge(df1,df2,by="county")
+
+df1 <- df1 %>%
+  mutate(county = fct_reorder(county, owners))
+
+# Create a stacked bar plot
+source("R/load.custom.theme.R")
+
+# Create a stacked bar plot
+ggplot(df1, aes(x = county, y = share, fill = var_name)) +
+  geom_bar(stat = "identity") +
+  labs(x = "County", y = "Share", fill = "Group") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Household Tenure",
+                      labels = c("Social", "Rent", "Mortgage", "Owner")) +
+  theme_custom()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("% of Households") +
+  xlab("") +
+  labs(title = "Share of Households by Tenure",
+       subtitle = "Census 2022",
+       caption = "Source data: CSO FY034B")
+
+```
+
+One of the most interesting initial findings is the current trend of a decreasing share of mortgage holders. Easy access to credit in the 90's and 00's, led to an increase in the number of mortgage holders. With the introduction of macro-prudential rules, we are not witnessing the same levels of credit that ultimately lead to the Irish banking crisis post-2008.
+
+#### Figure 2: % change in share of households with a mortgage.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Filter and transform your data
+filtered_data <- all_df %>%
+  filter(magnitude == "relative", 
+         year == "2016-2022",
+         var_name == "tenure_mort", 
+         temporal == "change", 
+         category == "tenure") %>%
+  mutate(county = fct_reorder(county, value),
+         color = if_else(county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"), "red", "black"))
+
+# Create the bar chart
+ggplot(filtered_data, aes(x = county, y = value)) +
+  geom_bar(stat = "identity", fill = filtered_data$color) +
+  theme_custom() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Relative Change (%)") +
+  xlab("") +
+  labs(title = "% change in number of households with a mortgage",
+       subtitle = "Census 2016 & 2022",
+       caption = "Source data: CSO FY034B")
+```
+
+## Mortgage Housing Tenure
+
+The graph shows that outside of the GDA counties (except Laois), there has been an overall decline in the number of new mortgage holders. This is not in itself surprising, as if we examine the quantity of new houses built in these area, we get a strong linear relationship. The figure below shows new dwelling completions over the period 2016Q2 to 2022Q1, this covers the intercensal period, as a percentage of existing dwelling stock in 2016.
+
+#### Figure 3: Relationship between change in share of mortgages and new dwellings by county.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+source("R/load.custom.theme.R")
+library(ggpmisc)
+library(rlang)
+library(ggrepel)
+
+#mortgage data
+mort_data <- all_df %>%
+  filter(magnitude == "relative", 
+         year == "2016-2022",
+         var_name %in% c("tenure_mort"), 
+         temporal == "change", 
+         category == "tenure")
+mort_data <- mort_data[c(1,3,6)]
+wide_mort <- mort_data %>%
+  pivot_wider(names_from = var_name, values_from = value)
+wide_mort <- wide_mort %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+
+#mortgage data
+mort_data_abs <- all_df %>%
+  filter(magnitude == "absolute", 
+         year == "2016-2022",
+         var_name %in% c("tenure_mort"), 
+         temporal == "change", 
+         category == "tenure")
+mort_data_abs <- mort_data_abs[c(1,3,6)]
+mort_data_abs <- mort_data_abs %>%
+  pivot_wider(names_from = var_name, values_from = value)
+mort_data_abs <- mort_data_abs %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+names(mort_data_abs)[names(mort_data_abs) == "tenure_mort"] <- "abs_tenure_mort"
+
+#mortgage data
+mort_16 <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year == "2011",
+         var_name %in% c("tenure_mort"), 
+         temporal == "static", 
+         category == "tenure")
+mort_16 <- mort_16[c(1,3,6)]
+mort_16 <- mort_16 %>%
+  pivot_wider(names_from = var_name, values_from = value)
+mort_16 <- mort_16 %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+names(mort_16)[names(mort_16) == "tenure_mort"] <- "tenure_mort_16"
+
+mort_22 <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year == "2022",
+         var_name %in% c("tenure_mort"), 
+         temporal == "static", 
+         category == "tenure")
+mort_22 <- mort_22[c(1,3,6)]
+mort_22 <- mort_22 %>%
+  pivot_wider(names_from = var_name, values_from = value)
+mort_22 <- mort_22 %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+names(mort_22)[names(mort_22) == "tenure_mort"] <- "tenure_mort_22"
+
+#new builds data
+new_data <- all_df %>%
+  filter(var_name %in%  c("new_build_all","new_build_scheme"), 
+         category == "new_dwelling_completions")
+new_data <- new_data[c(1,3,6)]
+wide_new <- new_data %>%
+  pivot_wider(names_from = var_name, values_from = value)
+wide_new <- wide_new %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+#total housing stock
+hhs_data <- all_df %>%
+  filter(var_name == "built_all", 
+         category == "built",
+         year=="2016")
+hhs_data <- hhs_data[c(1,3,6)]
+hhs_data <- hhs_data %>%
+  pivot_wider(names_from = var_name, values_from = value)
+hhs_data <- hhs_data %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+#merge data
+data_house <- merge(wide_new,wide_mort,by="county")
+data_house <- merge(data_house,hhs_data,by="county")
+data_house <- merge(data_house,mort_data_abs,by="county")
+data_house <- merge(data_house,mort_16,by="county")
+data_house <- merge(data_house,mort_22,by="county")
+#get totals
+subset_df <- subset(data_house, tenure_mort > 0)
+sum_16 <- sum(subset_df$tenure_mort_16)
+
+subset_df <- subset(data_house, tenure_mort > 0)
+sum_22 <- sum(subset_df$tenure_mort_22)
+
+diff1 <- sum_22 - sum_16
+
+subset_df <- subset(data_house, tenure_mort > 0)
+sum_diff <- sum(subset_df$abs_tenure_mort)
+
+
+subset_df <- subset(data_house, tenure_mort < 0)
+sum_16b <- sum(subset_df$tenure_mort_16)
+
+subset_df <- subset(data_house, tenure_mort < 0)
+sum_22b <- sum(subset_df$tenure_mort_22)
+diffbelow <- sum_22b - sum_16b
+
+data_house$ratio_new <- 100*(data_house$new_build_all / data_house$built_all)
+
+#equation and R2
+my_formula <- y ~ x
+lm_eqn <- function(df){
+    m <- lm(tenure_mort ~ ratio_new, data_house);
+    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+         list(a = format(unname(coef(m)[1]), digits = 2),
+              b = format(unname(coef(m)[2]), digits = 2),
+             r2 = format(summary(m)$r.squared, digits = 3)))
+    as.character(as.expression(eq));
+}
+#
+
+# Create the scatter plot with x and y values
+ggplot(data_house, aes(x = ratio_new, y = tenure_mort)) +
+  geom_point( size = 2) +
+  geom_smooth(method = "lm", se = TRUE, color = "red", formula = my_formula) +
+  labs(x = "New Dwelling Completions as % of Existing Stock", y = "Change in Mortgage Tenure Share") +
+  theme_custom() +
+  geom_text_repel(data = subset(data_house, ratio_new >5 & tenure_mort>0 | ratio_new >6), aes(label = county),nudge_y = 0.5) +
+  theme(legend.position = "none")+
+  geom_text(x = 4, y = 6, label = lm_eqn(data_house), parse = TRUE)
+  
+```
+
+As Figure 3 shows, the local authorities that had a positive increase in the share of households that were living in a dwelling owned with a loan or mortgage, were the same local authorities that experienced the largest increase in the housing stock. Taking just the local authorities that have a positive change in mortgage tenure share, Table 1 shows the absolute change between these two groups.
+
+#### Table 1: Absolute Change in Tenure between 2011 and 2022 by group.
+
+```{r table, echo=FALSE}
+library(knitr)
+
+#mortgage data
+mort_data <- all_df %>%
+  filter(magnitude == "relative", 
+         year == "2016-2022",
+         var_name %in% c("tenure_mort"), 
+         temporal == "change", 
+         category == "tenure")
+mort_data <- mort_data[c(1,3,6)]
+wide_mort <- mort_data %>%
+  pivot_wider(names_from = var_name, values_from = value)
+wide_mort <- wide_mort %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+#tenure data
+tenure_11 <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year == "2011",
+         var_name %in% c("tenure_mort","tenure_owner","tenure_rent","tenure_social"), 
+         temporal == "static", 
+         category == "tenure")
+tenure_11 <- tenure_11[c(1,3,6)]
+tenure_11$var_name <- paste0(tenure_11$var_name,"_2011")
+tenure_11 <- tenure_11 %>%
+  pivot_wider(names_from = var_name, values_from = value)
+tenure_11 <- tenure_11 %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+tenure_22 <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year == "2022",
+         var_name %in% c("tenure_mort","tenure_owner","tenure_rent","tenure_social"), 
+         temporal == "static", 
+         category == "tenure")
+tenure_22 <- tenure_22[c(1,3,6)]
+tenure_22$var_name <- paste0(tenure_22$var_name,"_2022")
+tenure_22 <- tenure_22 %>%
+  pivot_wider(names_from = var_name, values_from = value)
+tenure_22 <- tenure_22 %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+
+stock11_22 <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year  %in% c("2011","2022"),
+         var_name %in% c("built_all"), 
+         temporal == "static", 
+         category == "built")
+stock11_22$var_name <- paste0(stock11_22$var_name,"_",stock11_22$year)
+stock11_22 <- stock11_22[c(1,3,6)]
+stock11_22 <- stock11_22 %>%
+  pivot_wider(names_from = var_name, values_from = value)
+stock11_22 <- stock11_22 %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+wide_mort <- merge(wide_mort,tenure_11)
+wide_mort <- merge(wide_mort,tenure_22)
+wide_mort <- merge(wide_mort,stock11_22)
+
+#
+wide_mort <- wide_mort %>%
+  mutate(class1 = ifelse(tenure_mort > 0, "above", "below"))
+
+df1 <- wide_mort %>%
+  group_by(class1) %>%
+  summarise(sum_own_11 = sum(tenure_owner_2011),
+            sum_mort_11 = sum(tenure_mort_2011),
+            sum_rent_11 = sum(tenure_rent_2011),
+            sum_pub_11 = sum(tenure_social_2011),
+            sum_own_22 = sum(tenure_owner_2022),
+            sum_mort_22 = sum(tenure_mort_2022),
+            sum_rent_22 = sum(tenure_rent_2022),
+            sum_pub_22 = sum(tenure_social_2022),
+            sum_hs_11 = sum(built_all_2011),
+            sum_hs_22 = sum(built_all_2022))
+
+#above
+abv <- t(as.matrix(df1[1,]))
+abv_11 <- abv[2:5]
+abv_11 <- as.numeric(abv_11)
+abv_11 <- c(abv_11, sum(abv_11))
+abv_22 <- abv[6:9]
+abv_22 <- as.numeric(abv_22)
+abv_22 <- c(abv_22, sum(abv_22))
+blw <-t(as.matrix(df1[2,]))
+blw_11 <- blw[2:5]
+blw_11 <- as.numeric(blw_11)
+blw_11 <- c(blw_11, sum(blw_11))
+blw_22 <- blw[6:9]
+blw_22 <- as.numeric(blw_22)
+blw_22 <- c(blw_22, sum(blw_22))
+
+diff_abv <- abv_22 - abv_11
+diff_blw <- blw_22 - blw_11
+
+diff_abv <- formatC(diff_abv, format="f", big.mark = ",", digits=0)
+diff_blw <- formatC(diff_blw, format="f", big.mark = ",", digits=0)
+abv_11 <- formatC(abv_11, format="f", big.mark = ",", digits=0)
+abv_22 <- formatC(abv_22, format="f", big.mark = ",", digits=0)
+blw_22 <- formatC(blw_22, format="f", big.mark = ",", digits=0)
+blw_11 <- formatC(blw_11, format="f", big.mark = ",", digits=0)
+
+
+
+df <- data.frame(
+  "tenure" = c("Own outright","Own with Mortgage","Private Renting","Social Renting","Total"),
+  "abv_11" = as.character(c(abv_11)),
+  "blw_11" = c(blw_11),
+  "abv_22" = c(abv_22),
+  "blw_22" = c(blw_22),
+  "da" = c(diff_abv),
+  "db" = c(diff_blw)
+)
+
+colnames(df)[1:7] <- c("Tenure Type", "Above 2011", "Below 2011",
+                       "Above 2022","Below 2022","Difference Above","Difference Below")
+
+
+kable(df, caption = "Total Households by Tenure 2011 & 2022", align = 'r') 
+
+
+```
+
+The table shows that overall there was a total of 125,353 new households. The majority of these new households were in the owner occupiers categories. The decrease in the level of "owner with a mortgage" (-51,941) indicates a decreasing rate of new mortgages. The increase of 112,942 in the quantity of "own outright" could be a result of households paying off their mortgage and now owning their home outright or those who were cash buyers of property. Taking this all together for every 2 mortgages paid off, 1 additional mortgage is being added. This however was not the same everywhere, grouping those counties with a positive relative change (Cork,Laois,Dublin,Wicklow,Kildare and Meath), in these counties for every 1.2 mortgages paid off there was 1 mortgage added, wheres in those counties below the line, the replacement rate was only 1 to 3. This is predominately related to issues around viability and affordability. This is a challenge for policy, to attempt to matching households resources with the cost of provision of housing. In many areas the a households budget is below the minimum cost price for a new property. 
+
+## Clustering
+
+```{r echo=FALSE , message=FALSE, warning=FALSE}
+
+chg_16_22 <- all_df %>%
+  filter(magnitude == "relative", 
+         year  %in% c("2016-2022"),
+         !(var_name %in% c("house_none", "Not stated","built_none","built_p2016")),
+         temporal == "change")
+chg_16_22 <- chg_16_22 %>%
+  filter(var_name %in% c("built_all", "tenure_mort","tenure_owner","age_over65","h_shr_tt_hhs","age_under15","population"))
+print(unique(chg_16_22$var_name))
+chg_16_22 <- chg_16_22[c(1,3,6)]
+chg_16_22 <- chg_16_22 %>%
+  pivot_wider(names_from = var_name, values_from = value)
+chg_16_22 <- chg_16_22 %>%
+  filter(!county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"))
+
+# Select the columns for clustering
+columns_for_clustering <- chg_16_22[, 2:8]
+
+# Perform k-means clustering
+k <- 4  # Number of clusters
+clusters <- kmeans(columns_for_clustering, centers = k)
+
+# Add cluster labels to the wide_data dataframe
+chg_16_22$cluster <- clusters$cluster
+
+cl_f <- chg_16_22[c(1,9)]
+
+```
+
+
+
+
+## Appendix
+
+#### Figure 4: % change in those who own their home outright
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Load packages
+library(ggplot2)
+library(ggthemes)
+library(tidyverse)
+
+# Filter and transform your data
+filtered_data <- all_df %>%
+  filter(magnitude == "relative", 
+         year == "2016-2022",
+         var_name == "tenure_owner", 
+         temporal == "change", 
+         category == "tenure") %>%
+  mutate(county = fct_reorder(county, value),
+         color = if_else(county %in% c("GDA", "Border", "wGDA", "State", "West", "South", "Other"), "red", "black"))
+
+source("R/load.custom.theme.R")
+
+# Create the bar chart
+ggplot(filtered_data, aes(x = county, y = value)) +
+  geom_bar(stat = "identity", fill = filtered_data$color) +
+  theme_custom() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Relative Change (%)") +
+  xlab("") +
+  labs(title = "% change in number of households that own outright their home",
+       subtitle = "Census 2016 & 2022",
+       caption = "Source data: CSO FY034B")
+```
+
+#### Figure 5: Census 2022 split by ownership
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+filtered_data <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year == "2022",
+         temporal == "static", 
+         category == "tenure",
+         var_name %in% c("tenure_owner","tenure_mort"))
+
+df1 <- filtered_data %>%
+  group_by(county) %>%
+  mutate(share = value / sum(value))
+
+# Convert the 'group' variable to a factor and specify the order of levels
+df1$var_name <- factor(df1$var_name, levels = c("tenure_social", "tenure_rent","tenure_mort","tenure_owner"))
+
+# Subset the dataframe for groups 'tenure_owner' and 'tenure_mort'
+df2 <- df1 %>%
+  filter(var_name %in% c("tenure_owner")) %>%
+  group_by(county) %>%
+  summarise(owners = sum(share))
+
+df1 <- merge(df1,df2,by="county")
+
+df1 <- df1 %>%
+  mutate(county = fct_reorder(county, owners))
+
+# Create a stacked bar plot
+source("R/load.custom.theme.R")
+
+# Create a stacked bar plot
+ggplot(df1, aes(x = county, y = share, fill = var_name)) +
+  geom_bar(stat = "identity") +
+  labs(x = "County", y = "Share", fill = "Group") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Household Tenure",
+                      labels = c("Own with Mortgage", "Own Outright")) +
+  theme_custom()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("% of Households") +
+  xlab("") +
+  labs(title = "Share of Households by Ownership",
+       subtitle = "Census 2022",
+       caption = "Source data: CSO FY034B")
+
+
+```
+
+#### Figure 6: Census 2022 split by rent.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+filtered_data <- all_df %>%
+  filter(magnitude == "absolute total", 
+         year == "2022",
+         temporal == "static", 
+         category == "tenure",
+         var_name %in% c("tenure_rent","tenure_social"))
+
+df1 <- filtered_data %>%
+  group_by(county) %>%
+  mutate(share = value / sum(value))
+
+# Convert the 'group' variable to a factor and specify the order of levels
+df1$var_name <- factor(df1$var_name, levels = c("tenure_social", "tenure_rent","tenure_mort","tenure_owner"))
+
+# Subset the dataframe for groups 'tenure_owner' and 'tenure_mort'
+df2 <- df1 %>%
+  filter(var_name %in% c("tenure_rent")) %>%
+  group_by(county) %>%
+  summarise(owners = sum(share))
+
+df1 <- merge(df1,df2,by="county")
+
+df1 <- df1 %>%
+  mutate(county = fct_reorder(county, owners))
+
+# Create a stacked bar plot
+source("R/load.custom.theme.R")
+
+# Create a stacked bar plot
+ggplot(df1, aes(x = county, y = share, fill = var_name)) +
+  geom_bar(stat = "identity") +
+  labs(x = "County", y = "Share", fill = "Group") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Household Tenure",
+                      labels = c("Social Renting", "Private Renting")) +
+  theme_custom()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("% of Households") +
+  xlab("") +
+  labs(title = "Share of Households Renting",
+       subtitle = "Census 2022",
+       caption = "Source data: CSO FY034B")
+
+
+```
+
+
+
+
+
+
+
+
+
+
